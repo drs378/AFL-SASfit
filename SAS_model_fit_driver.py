@@ -175,6 +175,8 @@ class SAS_model_fit(Driver):
                 resolution = self.resolution
             )
             self.models.append(model)
+        print()
+        print(self.models)
         print("")
         print("constructing sas models from persistent config")
         print(f"there are {len(self.models)} potential models")
@@ -183,43 +185,26 @@ class SAS_model_fit(Driver):
             
         self.models_fit = False
         
-        
-    def add_model(self,model_dict):
-        """ Adds a sas_wrapper model to the list of model objects"""
-        print(f"there are {len(self.models)} potential models")
-        print(f"adding a new model")
-        for newmodel in model_dict:
-            self.config['model_inputs'].append(newmodel)
-            self.models.append(sas_wrapper(
-                name = newmodel['name'],
-                sasmodel_type = newmodel['sasmodel'],
-                empty_data = self.empty_data,
-                parameters = newmodel['fit_params'],
-                resolution = self.resolution
-            ))
-        print(f"there are {len(self.models)} potential models")
+        return
+    
+    def print_model_pointer(self):
         for model in self.models:
-            print(model.name)
-        self.models_fit = False
-            
-    def remove_model(self, name):
-        """removes a model from the server model list given the colloquial name"""
-        for model in self.config['model_inputs']:
-            if model.name == name:
-                print(f'removing model {name}')
-                self.models.remove(model)
-        
-        for model in self.models:
-            print(model.name)
+            print(hex(id(model)))
+
                 
-    def store_results(self, filetype=None):
+    def store_results(self,model_list=None, filetype=None):
         """stores the results of the fitting into the appropriate structure and filetype and push it to the tiled server"""
         results_list = []
+        if model_list:
+            model_list = model_list
+        else:
+            model_list = self.models
+            
         if self.models_fit:
             print('models have been fit, building results structure')
             print(f'there are {len(self.models_post)} models that have been fit')
-            for model in self.models_post:
-                print(f'model location {model}')
+            for model in model_list:
+                print(f'model object location {model}')
                 name = model.name
                 sasmodel_type = model.sasmodel_type
                 # print(model.__dict__)
@@ -266,6 +251,8 @@ class SAS_model_fit(Driver):
         
         data = [np.array(i) for i in data]
         sasdata = [sasmodels.data.Data1D(x=i[:,0],y=i[:,1],dy=i[:,2]) for i in data]
+        self.data = data
+        self.data_ID = data_ID
         
         self.results=[]
         if fit_method==None:
@@ -276,21 +263,22 @@ class SAS_model_fit(Driver):
             
         if model_list==None:
             model_list = self.models
+            print(f"current self.models{self.models}")
             # print(self.models)
             
         for ddx, d in enumerate(sasdata):
-            print(ddx,d.y[0],d.y[-1])
+            self.models_post = []
             self.construct_models()
-                
-            store_d = {}
-            store_d[data_ID[ddx]] = {}
-            for model in model_list:
-                # print(model)
+            
+            for model in self.models:
+                print("starting fitting")
+                print(model)
+                print()
                 model.fit(data=d, fit_method=fit_method)
                 self.models_post.append(model)
                 self.models_fit = True
                 
-            self.results.append(self.store_results())
+            self.results.append(self.store_results(self.models_post))
             print('')
             print('')
         print("building report")
@@ -314,7 +302,7 @@ class SAS_model_fit(Driver):
         #     for model in model_list:
         #         model.fit(data=data, fit_method=fit_method)
 
-    def build_report(self):
+    def build_report(self,verbose=False):
         """
         Builds a human readable report for the fitting results. 
         TODO: Want a readable PDF built up from FPDF...
@@ -325,8 +313,38 @@ class SAS_model_fit(Driver):
         print(f"there are {len(self.results)} results")
         print("")
         self.report['model_fits'] = self.results
+        if verbose:
+
+            bf = {}
+            for idx, result in enumerate(self.results):
+                chisqs = [model['chisq'] for model in result]
+                names =  [model['name'] for model in result]
+                i = np.nanargmin(chisqs)
+                # bf.append([names[i],chisqs[i]])
+                bf[self.data_ID[idx]] = {}
+                bf[self.data_ID[idx]]['model_name'] = names[i]
+                bf[self.data_ID[idx]]['lowest_chisq'] = chisqs[i]
+                
+        else:
+            bf = {}
+            best_chis = []
+            best_names = []
+            indices = []
+            for idx, result in enumerate(self.results):
+                chisqs = [model['chisq'] for model in result]
+                names =  [model['name'] for model in result]
+                
+                i = np.nanargmin(chisqs)
+                best_chis.append(chisqs[i])
+                best_names.append(names[i])
+                indices.append(i)
+            bf['model_name'] = best_names
+            bf['lowest_chisq'] = best_chis
+            bf['model_idx'] = indices
+                
+        self.report['best_fits'] = bf
         
-        return self.report
+        return
         
     def model_selection(self,chisqr_tol=1e0):
         """
@@ -357,6 +375,36 @@ class SAS_model_fit(Driver):
         #the BIC criteria can be supplemented here. as of now it is a argmin of the chisqr
         return selected_model.name
     
+    
+    
+    def add_model(self,model_dict):
+        """ Adds a sas_wrapper model to the list of model objects"""
+        print(f"there are {len(self.models)} potential models")
+        print(f"adding a new model")
+        for newmodel in model_dict:
+            self.config['model_inputs'].append(newmodel)
+            self.models.append(sas_wrapper(
+                name = newmodel['name'],
+                sasmodel_type = newmodel['sasmodel'],
+                empty_data = self.empty_data,
+                parameters = newmodel['fit_params'],
+                resolution = self.resolution
+            ))
+        print(f"there are {len(self.models)} potential models")
+        for model in self.models:
+            print(model.name)
+        self.models_fit = False
+            
+    def remove_model(self, name):
+        """removes a model from the server model list given the colloquial name"""
+        for model in self.config['model_inputs']:
+            if model.name == name:
+                print(f'removing model {name}')
+                self.models.remove(model)
+        
+        for model in self.models:
+            print(model.name)
+            
     def _writedata(self,data):
         filename = pathlib.Path(self.config['filename'])
         filepath = pathlib.Path(self.config['filepath'])
