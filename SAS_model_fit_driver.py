@@ -322,10 +322,11 @@ class SAS_model_fit(Driver):
                 names =  [model['name'] for model in result]
                 i = np.nanargmin(chisqs)
                 # bf.append([names[i],chisqs[i]])
-                bf[self.data_ID[idx]] = {}
-                bf[self.data_ID[idx]]['model_name'] = names[i]
-                bf[self.data_ID[idx]]['lowest_chisq'] = chisqs[i]
-                
+                bf = {}
+                bf['model_name'] = names[i]
+                bf['lowest_chisq'] = chisqs[i]
+                bf['data_IDs'] = self.data_ID[idx]
+
         else:
             bf = {}
             best_chis = []
@@ -342,6 +343,7 @@ class SAS_model_fit(Driver):
             bf['model_name'] = best_names
             bf['lowest_chisq'] = best_chis
             bf['model_idx'] = indices
+            bf['data_IDs'] = self.data_ID
                 
         self.report['best_fits'] = bf
         
