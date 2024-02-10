@@ -11,7 +11,6 @@ import bumps.names
 import bumps.fitproblem
 
 # import sasview
-import sas
 import copy as cp
 
 import numpy as np
@@ -22,7 +21,7 @@ import periodictable.nsf
 # import plotly.express as px # plotting
 import re
 import sys
-import tol_colors as tc # colorblind safe color palettes
+# import tol_colors as tc # colorblind safe color palettes
 import xarray as xr
 
 import time
@@ -77,6 +76,7 @@ class sas_wrapper():
         self.experiment = sasmodels.bumps_model.Experiment(data=data, model=self.model)
         self.problem = bumps.fitproblem.FitProblem(self.experiment)
         if fit_method==None:
+            print('no specified fit method. Using a LM default')
             fit_method = {'method':'lm',
                           'steps':1000,
                           'ftol': 1.5e-6,
@@ -256,10 +256,11 @@ class SAS_model_fit(Driver):
         
         self.results=[]
         if fit_method==None:
-            print('using default LM fitting method')
+            print('using default config fitting method')
             fit_method = self.config['fit_method']
         else:
-            print(f'using default method {fit_method}')
+            print(f'using input method {fit_method}')
+            self.config['fit_method'] = fit_method
             
         if model_list==None:
             model_list = self.models
@@ -282,7 +283,7 @@ class SAS_model_fit(Driver):
             print('')
             print('')
         print("building report")
-        self.build_report()
+        self.build_report(verbose=True)
             
         ####################
         # a main process has to exist for this to run. not sure how it should interface on a server...
@@ -379,7 +380,7 @@ class SAS_model_fit(Driver):
     
     def add_model(self,model_dict):
         """ Adds a sas_wrapper model to the list of model objects"""
-        print(f"there are {len(self.models)} potential models")
+        print(f"there are {len(self.config['model_inputs'])} potential models")
         print(f"adding a new model")
         for newmodel in model_dict:
             self.config['model_inputs'].append(newmodel)
@@ -390,6 +391,7 @@ class SAS_model_fit(Driver):
                 parameters = newmodel['fit_params'],
                 resolution = self.resolution
             ))
+        self.construct_models
         print(f"there are {len(self.models)} potential models")
         for model in self.models:
             print(model.name)
