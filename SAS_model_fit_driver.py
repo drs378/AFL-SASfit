@@ -241,18 +241,23 @@ class SAS_model_fit(Driver):
         return results_list
     
     
-    def fit_models(self,data,data_ID,parallel=False,model_list=None, fit_method=None):
+    def fit_models(self,q, I, dI,data_ID=None,parallel=False,model_list=None, fit_method=None):
         """This will fit each available sas_wrapper model in the model list to the data supplied
+        q is a list of q vectors
+        I is a list of lists of the scattering patterns (n lists of q vectors)
+        dI is a list of lists of the uncertainty in the scattering patterns (n lists of q vectors)
         
-        data must be a list of sasmodel data-type containing at a minimum, [[x, y, dy],...] data
-        data_ID must be a list of string identifiers for each sasview data object
+        data_ID can be a list of string identifiers for each sasview data object
         fit_method is defaulted to in the input but if supplied must be a dictionary of kwargs that pass into the sasmodel.problem method. 
         """
         
-        data = [np.array(i) for i in data]
-        sasdata = [sasmodels.data.Data1D(x=i[:,0],y=i[:,1],dy=i[:,2]) for i in data]
-        self.data = data
-        self.data_ID = data_ID
+        # data = [np.array(i) for i in data]
+        #construct the sasdata_1d object for bumps
+        sasdata = [sasmodels.data.Data1D(x=np.array(q),
+                                         y=np.array(I)[i],
+                                         dy=np.array(dI)[i]) for i in range(len(I))]
+        # self.data = data
+        # self.data_ID = data_ID
         
         self.results=[]
         if fit_method==None:
@@ -283,7 +288,7 @@ class SAS_model_fit(Driver):
             print('')
             print('')
         print("building report")
-        self.build_report(verbose=True)
+        self.build_report()
             
         ####################
         # a main process has to exist for this to run. not sure how it should interface on a server...
@@ -303,7 +308,7 @@ class SAS_model_fit(Driver):
         #     for model in model_list:
         #         model.fit(data=data, fit_method=fit_method)
 
-    def build_report(self,verbose=False):
+    def build_report(self):
         """
         Builds a human readable report for the fitting results. 
         TODO: Want a readable PDF built up from FPDF...
@@ -314,40 +319,30 @@ class SAS_model_fit(Driver):
         print(f"there are {len(self.results)} results")
         print("")
         self.report['model_fits'] = self.results
-        if verbose:
-
-            bf = {}
-            for idx, result in enumerate(self.results):
-                chisqs = [model['chisq'] for model in result]
-                names =  [model['name'] for model in result]
-                i = np.nanargmin(chisqs)
-                # bf.append([names[i],chisqs[i]])
-                bf = {}
-                bf['model_name'] = names[i]
-                bf['lowest_chisq'] = chisqs[i]
-                bf['data_IDs'] = self.data_ID[idx]
-
-        else:
-            bf = {}
-            best_chis = []
-            best_names = []
-            indices = []
-            for idx, result in enumerate(self.results):
-                chisqs = [model['chisq'] for model in result]
-                names =  [model['name'] for model in result]
-                
-                i = np.nanargmin(chisqs)
-                best_chis.append(chisqs[i])
-                best_names.append(names[i])
-                indices.append(i)
-            bf['model_name'] = best_names
-            bf['lowest_chisq'] = best_chis
-            bf['model_idx'] = indices
-            bf['data_IDs'] = self.data_ID
+        bf = {}
+        best_chis = []
+        best_names = []
+        indices = []
+        for idx, result in enumerate(self.results):
+            print(idx,result)
+            chisqs = [model['chisq'] for model in result]
+            names =  [model['name'] for model in result]
+            
+            i = np.nanargmin(chisqs)
+            best_chis.append(chisqs[i])
+            best_names.append(names[i])
+            indices.append(i)
+        print(best_chis,best_names,indices)
+        bf['model_name'] = best_names
+        bf['lowest_chisq'] = best_chis
+        bf['model_idx'] = [int(i) for i in indices]
+        # bf['data_IDs'] = self.data_ID
+       
+        print(type(bf))
                 
         self.report['best_fits'] = bf
         
-        return
+        return self.report
         
     def model_selection(self,chisqr_tol=1e0):
         """
