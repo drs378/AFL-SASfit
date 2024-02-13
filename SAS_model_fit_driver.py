@@ -289,7 +289,12 @@ class SAS_model_fit(Driver):
             print('')
         print("building report")
         self.build_report()
-            
+
+        ## push to tiled
+        self.data.add_array('chisq',self.report['best_fits']['lowest_chisq'])
+        self.data.add_array('model_names',self.report['best_fits']['model_name'])
+        self.data['report'] = self.report
+
         ####################
         # a main process has to exist for this to run. not sure how it should interface on a server...
         ####################
@@ -307,6 +312,7 @@ class SAS_model_fit(Driver):
         # else:
         #     for model in model_list:
         #         model.fit(data=data, fit_method=fit_method)
+        return
 
     def build_report(self):
         """
@@ -323,6 +329,7 @@ class SAS_model_fit(Driver):
         best_chis = []
         best_names = []
         indices = []
+        best_models = []
         for idx, result in enumerate(self.results):
             print(idx,result)
             chisqs = [model['chisq'] for model in result]
@@ -336,9 +343,7 @@ class SAS_model_fit(Driver):
         bf['model_name'] = best_names
         bf['lowest_chisq'] = best_chis
         bf['model_idx'] = [int(i) for i in indices]
-        # bf['data_IDs'] = self.data_ID
-       
-        print(type(bf))
+        bf['model_params'] = [self.report['model_fits'][idx][m] for idx,m in enumerate(indices)]
                 
         self.report['best_fits'] = bf
         
